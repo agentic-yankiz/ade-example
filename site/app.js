@@ -7,7 +7,8 @@ const boards = [
   ["research", "Research Lab", "✦"],
   ["context", "Context Studio", "⌘"],
   ["release", "Release", "↗"],
-  ["safety", "Safety Gates", "⬡"]
+  ["safety", "Safety Gates", "⬡"],
+  ["plan", "Full Plan", "≡"]
 ];
 
 const params = new URLSearchParams(window.location.search);
@@ -65,13 +66,14 @@ const pageMeta = {
   research: ["AUTONOMOUS IMPROVEMENT", "Agent Research Lab", "Bounded experiments with frozen evals, fixed budgets, and explicit keep/discard decisions."],
   context: ["AGENT VERSION / COACH-V42.7", "Agent & Context Studio", "Everything the coaching agent knows, can call, and is forbidden to do."],
   release: ["RELEASE / COACH-V42.7", "Release & Observation", "Scope, gates, cohorts, live signals, and rollback authority in one view."],
-  safety: ["CHANGE SAFETY / HUMAN GUIDE", "Safety Gates", "What must pass, who can advance, who is exposed next, and exactly how we roll back."]
+  safety: ["CHANGE SAFETY / HUMAN GUIDE", "Safety Gates", "What must pass, who can advance, who is exposed next, and exactly how we roll back."],
+  plan: ["VISION / CANONICAL SOURCE", "The full Training ADE plan", "The product, architecture, improvement loops, safety system, and v1 → v20 roadmap in one living document."]
 };
 
 function shell(body) {
   const [eyebrow, title, subtitle] = pageMeta[active];
   const nav = boards.map(([id, label, icon]) => `<a class="nav-item ${id === active ? "active" : ""}" href="?board=${id}"><span class="nav-icon">${icon}</span>${label}${id === "work" ? '<span class="nav-badge">12</span>' : ""}</a>`).join("");
-  return `<div class="frame">
+  return `<div class="frame board-${active}">
     <aside class="sidebar">
       <div class="brand"><div class="brand-mark"></div><div><strong>Training ADE</strong><span>Performance system</span></div></div>
       <div class="nav-label">Workspace</div><nav class="nav">${nav}</nav>
@@ -82,8 +84,8 @@ function shell(body) {
     </aside>
     <section class="workspace">
       <header class="topbar"><div class="breadcrumbs">Agentic Yankiz&nbsp;&nbsp;/&nbsp;&nbsp;<strong>Training product</strong>&nbsp;&nbsp;/&nbsp;&nbsp;v20 vision</div><div class="top-actions"><span class="env">● Production evidence</span><span class="shortcut">⌘ K&nbsp;&nbsp; Ask ADE</span><button class="icon-button">⌁</button><button class="icon-button">?</button></div></header>
-      <div class="content">
-        <header class="page-head"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><div class="page-sub">${subtitle}</div></div><div class="head-actions"><button class="btn">${active === "safety" ? "Risk: high⌄" : "Last 30 days⌄"}</button><button class="btn primary">${active === "investigation" ? "+ Create work" : active === "safety" ? "View rollback runbook" : "+ Investigate"}</button></div></header>
+      <div class="content content-${active}">
+        <header class="page-head"><div><div class="eyebrow">${eyebrow}</div><h1>${title}</h1><div class="page-sub">${subtitle}</div></div><div class="head-actions">${active === "plan" ? '<a class="btn" href="PLAN.md" target="_blank" rel="noreferrer">View raw Markdown</a><button class="btn primary" id="copy-plan" type="button">Copy Markdown</button>' : `<button class="btn">${active === "safety" ? "Risk: high⌄" : "Last 30 days⌄"}</button><button class="btn primary">${active === "investigation" ? "+ Create work" : active === "safety" ? "View rollback runbook" : "+ Investigate"}</button>`}</div></header>
         ${body}
       </div>
     </section>
@@ -191,5 +193,79 @@ function safetyBoard() {
   return shell(`<div class="metrics">${metric("CURRENT GATE", "05", "Internal", "staff + trainers only", "#ffbd57")}${metric("CUSTOMER EXPOSURE", "0%", "42 internal", "feature flag allowlist", "#41e2bd")}${metric("REQUIRED CHECKS", "12/12", "passed", "commit-bound evidence", "#b8f34a")}${metric("ROLLBACK TARGET", "<2m", "armed", "kill switch + known good", "#ff6b67")}</div>${panel("The path from code to customers", "Every step limits exposure; a downstream pass never erases an upstream failure", rail, "h-244", "HIGH-RISK CHANGE")}<div class="grid two" style="margin-top:12px;grid-template-columns:1.18fr .82fr">${panel("Exactly what each gate checks", "Results expire whenever code, dependencies, evals, migrations or policy change", checks, "h-390", "NO SILENT BYPASS")}${panel("Rollback ladder", "Contain first, restore second, verify before resuming", rollback, "h-390 rollback-panel", "AUTO + HUMAN")}</div>`);
 }
 
-const renderers = { command: commandBoard, trainings: trainingsBoard, eval: evalBoard, investigation: investigationBoard, work: workBoard, research: researchBoard, context: contextBoard, release: releaseBoard, safety: safetyBoard };
+function planBoard() {
+  return shell(`<div class="plan-layout"><aside class="plan-toc panel" aria-label="Plan contents"><div class="panel-head"><div><div class="panel-title">On this page</div><div class="panel-kicker">Generated from PLAN.md</div></div></div><nav id="plan-toc" class="plan-toc-links"><span>Loading sections…</span></nav></aside><article class="plan-document panel"><div id="plan-content" class="markdown-body" aria-live="polite"><div class="plan-loading"><i></i><strong>Loading the canonical plan…</strong></div></div></article></div><div class="copy-toast" id="copy-toast" role="status" aria-live="polite"></div>`);
+}
+
+function slugifyHeading(text) {
+  return text.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-");
+}
+
+function escapeHtml(value) {
+  return value.replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[character]);
+}
+
+async function hydratePlan() {
+  const container = document.getElementById("plan-content");
+  const toc = document.getElementById("plan-toc");
+  if (!container || !toc) return;
+
+  try {
+    const response = await fetch("./PLAN.md");
+    if (!response.ok) throw new Error(`Plan request failed (${response.status})`);
+    const markdown = await response.text();
+    if (!window.marked || !window.mermaid) throw new Error("The document renderer did not load");
+
+    const renderer = new window.marked.Renderer();
+    renderer.heading = ({ tokens, depth }) => {
+      const text = window.marked.Parser.parseInline(tokens);
+      const id = slugifyHeading(tokens.map(token => token.raw || token.text || "").join(""));
+      return `<h${depth} id="${id}"><a class="heading-anchor" href="#${id}" aria-label="Link to this section">#</a>${text}</h${depth}>`;
+    };
+    container.innerHTML = window.marked.parse(markdown, { renderer });
+
+    const headings = [...container.querySelectorAll("h2, h3")];
+    toc.innerHTML = headings.map(heading => `<a class="toc-depth-${heading.tagName === "H3" ? "3" : "2"}" href="#${heading.id}">${heading.textContent.replace(/^#/, "")}</a>`).join("");
+
+    const diagrams = [...container.querySelectorAll("pre code.language-mermaid")];
+    diagrams.forEach(code => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "mermaid";
+      wrapper.textContent = code.textContent;
+      code.parentElement.replaceWith(wrapper);
+    });
+    window.mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "strict",
+      theme: "base",
+      themeVariables: {
+        background: "#0d100f",
+        primaryColor: "#171c19",
+        primaryTextColor: "#f0f4ef",
+        primaryBorderColor: "#b8f34a",
+        lineColor: "#69756c",
+        secondaryColor: "#111a25",
+        tertiaryColor: "#171426",
+        fontFamily: "Inter, ui-sans-serif, sans-serif",
+        fontSize: "15px"
+      }
+    });
+    if (diagrams.length) await window.mermaid.run({ nodes: [...container.querySelectorAll(".mermaid")] });
+
+    const copyButton = document.getElementById("copy-plan");
+    copyButton?.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(markdown);
+      const toast = document.getElementById("copy-toast");
+      toast.textContent = "Markdown copied";
+      toast.classList.add("visible");
+      window.setTimeout(() => toast.classList.remove("visible"), 1800);
+    });
+  } catch (error) {
+    container.innerHTML = `<div class="plan-error"><strong>The rendered plan could not load.</strong><p>${escapeHtml(error.message)}</p><a class="btn" href="PLAN.md">Open the raw Markdown</a></div>`;
+    toc.innerHTML = '<a href="PLAN.md">Open raw Markdown</a>';
+  }
+}
+
+const renderers = { command: commandBoard, trainings: trainingsBoard, eval: evalBoard, investigation: investigationBoard, work: workBoard, research: researchBoard, context: contextBoard, release: releaseBoard, safety: safetyBoard, plan: planBoard };
 document.getElementById("app").innerHTML = renderers[active]();
+if (active === "plan") hydratePlan();

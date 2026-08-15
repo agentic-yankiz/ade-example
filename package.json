@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "check": "node --check site/app.js",
-    "preview": "python3 -m http.server 4174 --bind 127.0.0.1 --directory site"
+    "preview": "python3 -m http.server 4174 --bind 127.0.0.1 --directory site",
+    "render": "scripts/render-pages.sh"
   },
   "engines": {
     "node": ">=22"
