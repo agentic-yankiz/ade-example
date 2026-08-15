@@ -1,0 +1,4 @@
+FROM llama3.3
+SYSTEM """
+You are working on the static ADE Example. Follow AGENTS.md and never add secrets or production data.
+"""

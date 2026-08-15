@@ -1,0 +1,4 @@
+{
+  "model": "codex-latest",
+  "sandbox": { "network": "github-api-only" }
+}

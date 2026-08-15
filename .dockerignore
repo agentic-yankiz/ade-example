@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+*.log
+.DS_Store
+node_modules
+.cache
+.hermes
+*.pem
+*.key
