@@ -285,6 +285,15 @@ The ADE and the commercial training product are two different products even when
 
 These paths must never share an implicit version or an ambiguous “deployed” state.
 
+The control relationship is intentionally indirect. The ADE observes production through read-only evidence and changes the product only by creating reviewable GitHub work that passes the product's own pipeline.
+
+```mermaid
+flowchart LR
+    APP[Training app] -->|Events + read only| ADE[ADE]
+    ADE -->|Issue + PR| GH[GitHub]
+    GH -->|Gated release| APP
+```
+
 ```mermaid
 flowchart LR
     AC[ADE change] --> AP[ADE checks]
@@ -352,7 +361,71 @@ Use **two repositories** for the production ADE and training product. The asymme
 
 Choose a monorepo only when atomic cross-project change frequency and shared development needs demonstrably outweigh the permission and release-boundary costs. If chosen, preserve the same logical separation through project-scoped versions, gates, builds, deployment permissions, and rollback records.
 
-## 15. Product screens
+## 15. Agents working while humans sleep
+
+The ADE should keep observing and preparing work outside human hours. Overnight autonomy means producing evidence, investigations, tests, and reviewable changes—not silently acquiring production authority.
+
+### Monitoring-to-fix loop
+
+```mermaid
+flowchart LR
+    M[Monitoring] --> I[Investigation]
+    I --> F[Fix PR]
+    F --> R[Adversarial review]
+    R --> K{Risk class}
+    K -->|Low + reversible| A[Automatic limited release]
+    K -->|High or uncertain| H[Human gate]
+```
+
+Sentinel agents listen to Sentry, PostHog, health checks, cron checks, customer signals, trainer feedback, and release observations. They deduplicate signals, open an investigation, preserve supporting and contradicting evidence, reproduce the fault, suggest a fix, add regression tests, and open a scoped pull request.
+
+Independent adversarial reviewers then try to disprove the diagnosis and break the fix. They inspect security, privacy, training safety, data compatibility, rollback readiness, scope match, and unintended cohort effects. The proposing agent cannot approve its own work.
+
+### When a human may be skipped
+
+An automated fix may advance without a synchronous human only when **all** of these are true:
+
+- The risk class is low and the affected surface is explicitly allowlisted.
+- The change is reversible through a tested feature flag or exact known-good artifact.
+- It does not touch training safety, auth, billing, privacy, permissions, databases, migrations, infrastructure, secrets, or the gate system.
+- The diff is small, bounded to the planned paths, and includes a regression test.
+- Deterministic CI, security checks, evals, scope checks, and independent adversarial review all pass.
+- Release begins internally or in a small canary with automatic rollback thresholds and a durable audit record.
+
+Any uncertainty, missing evidence, reviewer disagreement, expanding blast radius, or threshold regression stops automation and wakes or queues a named human. High and critical changes always require a human production gate.
+
+### Cheap cron and janitor mode
+
+```mermaid
+flowchart LR
+    C[Scheduled cron] --> J[Cheap janitor agent]
+    J --> O[Report, issue, or small PR]
+    O --> G[Normal gates]
+```
+
+Low-cost models can perform frequent, bounded maintenance such as source-freshness checks, stale issue triage, broken-link detection, flaky-test clustering, documentation drift, unused feature-flag reports, dependency-drift reports, evidence retention reports, orphaned preview detection, and eval coverage gaps.
+
+Janitor jobs have fixed time, token, tool, and retry budgets. They prefer reports and issues; they open code changes only for allowlisted mechanical tasks. They cannot weaken a check, expand their own permissions, or convert a failed task into a production mutation.
+
+### What agents never receive
+
+Agents are goal-seeking and may choose a dangerous shortcut while trying to finish. Safety therefore comes from unavailable capabilities, not instructions asking an agent to be careful.
+
+```mermaid
+flowchart LR
+    AG[ADE agent] -->|Read-only| EV[Evidence replica]
+    AG -->|Propose| GH[GitHub PR]
+    API[Product service] -->|Owned access| DB[(Production DB)]
+    AG -. No credentials .-> DB
+```
+
+ADE agents never receive direct production database write, delete, owner, service-role, console, or “god mode” credentials. They never receive direct destructive infrastructure access, unrestricted secret access, permission to bypass or disable gates, or authority to grant themselves new tools and roles.
+
+Agents may propose migrations, data repair, infrastructure changes, and operational commands in a pull request or audited runbook. A separately authorized deterministic service or named human executes approved production mutations through narrow, validated interfaces. Emergency containment uses prebuilt kill switches and rollback actions—not a general-purpose production shell.
+
+The training application itself may write customer data through its normal validated APIs and least-privilege service identity. That does not imply the ADE or its agents receive the same identity.
+
+## 16. Product screens
 
 | Screen | Primary question |
 |---|---|
@@ -367,7 +440,7 @@ Choose a monorepo only when atomic cross-project change frequency and shared dev
 | Safety Gates | What must pass and exactly how can the system roll back? |
 | Full Plan | What complete product and implementation contract aligns the work? |
 
-## 16. Delivery roadmap
+## 17. Delivery roadmap
 
 ```mermaid
 timeline
@@ -388,7 +461,7 @@ timeline
 
 The visual product shows the v20 destination. It is a compass, not a claim that every capability belongs in v1.
 
-## 17. Acceptance criteria
+## 18. Acceptance criteria
 
 - Duplicate provider events cannot duplicate evidence, investigations, issues, or releases.
 - Source outages expose staleness and lower confidence without fabricating evidence.
@@ -401,3 +474,4 @@ The visual product shows the v20 destination. It is a compass, not a claim that 
 - Feature flags, regional holds, known-good versions, and data-recovery runbooks are tested before customer exposure.
 - Every release, rollback, and final observation verdict is auditable.
 - Humans can understand the current state without reading raw agent traces, while agents can retrieve the precise context behind every displayed conclusion.
+- Overnight agents can prepare and safely canary low-risk work without receiving production database or infrastructure authority.
