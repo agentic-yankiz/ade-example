@@ -36,6 +36,7 @@ boards=(
   "release:08-release-observation.png"
   "safety:09-safety-gates.png"
   "plan:10-full-plan.png"
+  "autonomy:11-autonomous-ops.png"
 )
 
 for item in "${boards[@]}"; do
@@ -56,6 +57,6 @@ done
   --disable-gpu \
   --hide-scrollbars \
   --force-device-scale-factor=1 \
-  --window-size=1400,2640 \
+  --window-size=1400,3150 \
   --screenshot="$output_dir/00-contact-sheet.png" \
   "$preview_url/contact-sheet.html"

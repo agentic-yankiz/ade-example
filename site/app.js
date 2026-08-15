@@ -5,6 +5,7 @@ const boards = [
   ["investigation", "Investigation", "◇"],
   ["work", "Work & Kanban", "▦"],
   ["research", "Research Lab", "✦"],
+  ["autonomy", "Autonomous Ops", "☾"],
   ["context", "Context Studio", "⌘"],
   ["release", "Release", "↗"],
   ["safety", "Safety Gates", "⬡"],
@@ -64,6 +65,7 @@ const pageMeta = {
   investigation: ["INVESTIGATION / INV-284", "Why did week-two adherence fall?", "A cross-system timeline with competing hypotheses and evidence confidence."],
   work: ["GITHUB PROJECT / FITNESS PLANNER", "Work & Kanban", "Features, bugs, incidents, eval regressions, and agent opportunities in one flow."],
   research: ["AUTONOMOUS IMPROVEMENT", "Agent Research Lab", "Bounded experiments with frozen evals, fixed budgets, and explicit keep/discard decisions."],
+  autonomy: ["AUTONOMY / NIGHT SHIFT", "Autonomous Ops", "What agents watched, investigated, fixed, escalated, and learned while the team was offline."],
   context: ["AGENT VERSION / COACH-V42.7", "Agent & Context Studio", "Everything the coaching agent knows, can call, and is forbidden to do."],
   release: ["RELEASE / COACH-V42.7", "Release & Observation", "Scope, gates, cohorts, live signals, and rollback authority in one view."],
   safety: ["CHANGE SAFETY / HUMAN GUIDE", "Safety Gates", "What must pass, who can advance, who is exposed next, and exactly how we roll back."],
@@ -193,6 +195,34 @@ function safetyBoard() {
   return shell(`<div class="metrics">${metric("CURRENT GATE", "05", "Internal", "staff + trainers only", "#ffbd57")}${metric("CUSTOMER EXPOSURE", "0%", "42 internal", "feature flag allowlist", "#41e2bd")}${metric("REQUIRED CHECKS", "12/12", "passed", "commit-bound evidence", "#b8f34a")}${metric("ROLLBACK TARGET", "<2m", "armed", "kill switch + known good", "#ff6b67")}</div>${panel("The path from code to customers", "Every step limits exposure; a downstream pass never erases an upstream failure", rail, "h-244", "HIGH-RISK CHANGE")}<div class="grid two" style="margin-top:12px;grid-template-columns:1.18fr .82fr">${panel("Exactly what each gate checks", "Results expire whenever code, dependencies, evals, migrations or policy change", checks, "h-390", "NO SILENT BYPASS")}${panel("Rollback ladder", "Contain first, restore second, verify before resuming", rollback, "h-390 rollback-panel", "AUTO + HUMAN")}</div>`);
 }
 
+function autonomyMode(icon, title, description, status, tone, detail) {
+  return `<article class="autonomy-mode" style="--mode-color:var(--${tone})"><div class="autonomy-mode-top"><span class="autonomy-mode-icon">${icon}</span>${tag(status, tone === "lime" || tone === "teal" ? "green" : tone)}</div><strong>${title}</strong><p>${description}</p><small>${detail}</small></article>`;
+}
+
+function autonomyBoard() {
+  const modes = autonomyMode("◉", "Sentinel", "Listens to monitoring and customer signals, deduplicates anomalies, and opens evidence-backed investigations.", "ALWAYS ON", "teal", "Event-driven · read-only · 8 sources")
+    + autonomyMode("◇", "Investigator", "Reproduces failures, compares hypotheses, measures blast radius, and proposes the smallest supported response.", "ON SIGNAL", "blue", "Read-only tools · max 25 min")
+    + autonomyMode("↗", "Fixer", "Creates a branch, regression test, fix PR, rollback note, and evidence receipt—never a direct production mutation.", "LOW RISK", "lime", "PR only · adversarial council")
+    + autonomyMode("⌁", "Janitor", "Runs cheap scheduled maintenance: stale work, broken links, drift, flaky tests, flags, previews, and retention reports.", "CRON", "violet", "Budget: $1.20/night · 12 jobs");
+
+  const ledger = `<table class="data-table autonomy-table"><thead><tr><th style="width:16%">Run</th><th style="width:35%">Work</th><th>Mode</th><th>Result</th><th>Next authority</th></tr></thead><tbody>
+    <tr><td><strong>INV-318</strong><span class="subtle">02:14</span></td><td><strong>Plan-save race reproduced</strong><span class="subtle">Sentry × PostHog × release 4.18.0</span></td><td>Investigator</td><td>${tag("Confirmed", "green")}</td><td>Fixer</td></tr>
+    <tr><td><strong>PR-447</strong><span class="subtle">03:02</span></td><td><strong>Preserve unsaved week edits</strong><span class="subtle">8 files · regression test · rollback ready</span></td><td>Fixer</td><td>${tag("Council pass", "green")}</td><td>Human gate</td></tr>
+    <tr><td><strong>JAN-892</strong><span class="subtle">03:20</span></td><td><strong>Remove 14 stale previews</strong><span class="subtle">Allowlisted mechanical cleanup</span></td><td>Janitor</td><td>${tag("Auto landed", "lime")}</td><td>Observe</td></tr>
+    <tr><td><strong>INV-319</strong><span class="subtle">04:06</span></td><td><strong>Trainer sentiment shift</strong><span class="subtle">Evidence conflicts across cohorts</span></td><td>Investigator</td><td>${tag("Inconclusive", "amber")}</td><td>Human review</td></tr>
+    <tr><td><strong>JAN-893</strong><span class="subtle">04:31</span></td><td><strong>Dependency update proposal</strong><span class="subtle">Unexpected bundle-size increase</span></td><td>Janitor</td><td>${tag("Discarded", "red")}</td><td>None</td></tr>
+  </tbody></table>`;
+
+  const gateQueue = `<div class="gate-queue"><div class="gate-queue-head"><div><span>READY AT 06:00</span><strong>2 decisions need a human</strong></div><b>~7 min</b></div>
+    <div class="policy-list"><div class="policy" style="--policy:var(--amber)"><i></i><div><strong>PR #447 · plan editor fix</strong><span>Customer-facing · 184 affected · canary proposed</span></div><b>REVIEW</b></div><div class="policy" style="--policy:var(--red)"><i></i><div><strong>Returner progression signal</strong><span>Training-safety surface · evidence disagreement</span></div><b>HUMAN</b></div><div class="policy" style="--policy:var(--teal)"><i></i><div><strong>Stale preview cleanup</strong><span>Low-risk allowlist · rollback verified</span></div><b>AUTO ✓</b></div></div></div>`;
+
+  const outcomes = `<div class="autonomy-outcomes"><div class="legend"><span style="--legend:var(--lime)">Useful work</span><span style="--legend:var(--red)">Discarded / blocked</span></div>${lineChart("#b8f34a", "#ff6b67")}<div class="outcome-summary"><div><strong>71%</strong><span>useful-result rate</span></div><div><strong>4.8h</strong><span>human time saved</span></div><div><strong>$8.42</strong><span>overnight cost</span></div><div><strong>0</strong><span>unsafe mutations</span></div></div></div>`;
+
+  const boundary = `<div class="autonomy-boundary"><div class="boundary-lock">×</div><div><span>CAPABILITY BOUNDARY</span><strong>No production write credentials exist</strong><p>Agents can read evidence and propose GitHub work. They cannot write or delete production data, use owner/service roles, mutate infrastructure, reveal secrets, bypass gates, or expand their own permissions.</p></div></div><div class="boundary-flow"><span>READ EVIDENCE</span><b>→</b><span>OPEN PR</span><b>→</b><span>PASS GATES</span><b>→</b><span class="human">HUMAN OR ALLOWLIST</span></div>`;
+
+  return shell(`<div class="metrics">${metric("OVERNIGHT RUNS", "38", "12 scheduled", "02:00–06:00 · fixed budgets", "#a995ff")}${metric("USEFUL RESULTS", "27", "71%", "7 PRs · 11 investigations", "#b8f34a")}${metric("AUTO-LANDED", "03", "low risk", "internal or reversible only", "#41e2bd")}${metric("HUMAN ESCALATIONS", "04", "2 urgent", "training · customer-facing", "#ffbd57")}</div>${panel("Autonomy modes", "Different authority, cost, trigger, and tool envelope for each kind of work", `<div class="autonomy-mode-grid">${modes}</div>`, "h-258", "NIGHT POLICY V12")}<div class="grid two" style="margin-top:12px;grid-template-columns:1.25fr .75fr">${panel("Overnight run ledger", "Every success, discard, failure, and escalation remains inspectable", ledger, "h-344", "38 RUNS")}${panel("Morning gate queue", "Automation prepares the decision; risk decides the authority", gateQueue, "h-344", "2 NEED YOU")}</div><div class="grid two" style="margin-top:12px;grid-template-columns:1.05fr .95fr">${panel("What is working", "Rolling 30-night value, cost, and failure trend", outcomes, "h-306", "+18% USEFUL / COST")}${panel("Hard safety boundary", "Goal-seeking agents cannot use capabilities they were never given", boundary, "h-306 boundary-panel", "ENFORCED OUTSIDE MODEL")}</div>`);
+}
+
 function planBoard() {
   return shell(`<div class="plan-layout"><aside class="plan-toc panel" aria-label="Plan contents"><div class="panel-head"><div><div class="panel-title">On this page</div><div class="panel-kicker">Generated from PLAN.md</div></div></div><nav id="plan-toc" class="plan-toc-links"><span>Loading sections…</span></nav></aside><article class="plan-document panel"><div id="plan-content" class="markdown-body" aria-live="polite"><div class="plan-loading"><i></i><strong>Loading the canonical plan…</strong></div></div></article></div><div class="copy-toast" id="copy-toast" role="status" aria-live="polite"></div>`);
 }
@@ -266,6 +296,6 @@ async function hydratePlan() {
   }
 }
 
-const renderers = { command: commandBoard, trainings: trainingsBoard, eval: evalBoard, investigation: investigationBoard, work: workBoard, research: researchBoard, context: contextBoard, release: releaseBoard, safety: safetyBoard, plan: planBoard };
+const renderers = { command: commandBoard, trainings: trainingsBoard, eval: evalBoard, investigation: investigationBoard, work: workBoard, research: researchBoard, autonomy: autonomyBoard, context: contextBoard, release: releaseBoard, safety: safetyBoard, plan: planBoard };
 document.getElementById("app").innerHTML = renderers[active]();
 if (active === "plan") hydratePlan();

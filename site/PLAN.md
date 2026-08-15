@@ -435,6 +435,7 @@ The training application itself may write customer data through its normal valid
 | Investigation | What does the cross-system evidence support or contradict? |
 | Work & Kanban | What are humans and agents doing across the delivery lifecycle? |
 | Research Lab | Which bounded improvements should be kept or discarded? |
+| Autonomous Ops | What did agents watch, investigate, fix, discard, escalate, and learn while humans slept? |
 | Context Studio | What did this agent know, call, and remain forbidden to do? |
 | Release | Who is exposed, which thresholds apply, and who can promote? |
 | Safety Gates | What must pass and exactly how can the system roll back? |
