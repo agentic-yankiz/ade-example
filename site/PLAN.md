@@ -49,30 +49,28 @@ flowchart LR
 The ADE is a separate, private, API-first Next.js application with its own Supabase project. The commercial training application remains the transactional system of record. The ADE stores normalized, read-optimized evidence and versioned control-plane records.
 
 ```mermaid
-flowchart TB
-    subgraph Sources[Product and delivery sources]
-      APP[Next.js product API]
-      DB[(Supabase product data)]
-      V[Vimeo metadata]
-      ST[Stripe subscription metadata]
-      GH[GitHub issues, PRs, projects]
-      SE[Sentry]
-      PH[PostHog]
-      HC[Health checks]
-      CR[Daily cron checks]
-    end
-
-    Sources --> IN[Typed ingestion adapters]
-    IN --> EF[(ADE evidence store)]
-    EF --> API[/ADE API v1/]
-    API --> UI[Human workspace]
-    API --> AG[Agent context and tools]
-    AG --> GH
-    AG --> EV[Evaluation and research]
-    EV --> EF
+flowchart LR
+    DB[(Product DB)] --> GW[Evidence Gateway]
+    PS[APIs + monitoring] --> IN[Typed adapters]
+    GW --> IN
+    IN --> ES[(ADE evidence store)]
+    ES --> ADE[ADE UI + agents]
+    ADE --> GH[GitHub work]
 ```
 
 Provider credentials, authentication secrets, payment instruments, private keys, and raw authentication material never enter the evidence store. Production data is mirrored through isolated read-only roles. Encryption, RLS, access audit, retention, purpose-bound service roles, pseudonymous subjects, and environment separation are mandatory.
+
+The ADE does not receive a general database connection or arbitrary SQL capability. Historical evidence reaches the ADE-owned store through events, webhooks, scheduled snapshots, or CDC. When fresh product state is required, the ADE calls a deterministic **ADE Evidence Gateway** in front of the product database.
+
+The gateway exposes only named, versioned read operations with fixed input and output schemas. It enforces tenant and environment scope, purpose, field-level redaction, row limits, timeouts, rate limits, freshness labels, and immutable audit logs. It cannot execute caller-supplied SQL, return unrestricted tables, mutate data, or elevate its own role. Agents can request operations such as `get_training_plan_summary`, `list_recent_feedback`, or `get_release_cohort_health`; adding a new operation requires reviewed product code and contract tests.
+
+```mermaid
+flowchart LR
+    DB[(Product DB)] --> GW[Evidence Gateway]
+    GW --> ADE[ADE]
+    EV[Events / CDC] --> ES[(ADE evidence store)]
+    ES --> ADE
+```
 
 Every evidence record carries source, source identifier, occurred and received timestamps, environment, tenant, pseudonymous subject, schema version, freshness, and retention class.
 
@@ -99,6 +97,7 @@ All interfaces are namespaced under `/api/v1` and use stable resource identifier
 | Interface | Responsibility |
 |---|---|
 | `POST /events`, `GET /evidence` | Provider ingestion and normalized evidence queries |
+| `/product-read/{operation}` | Deterministic, allowlisted fresh reads through the Evidence Gateway |
 | `/investigations` | Scope, timelines, evidence, hypotheses, findings, and issue creation |
 | `/agents`, `/agent-versions` | Definitions, runtime adapters, provenance, and releases |
 | `/eval-suites`, `/eval-runs` | Frozen cases, scores, comparisons, calibration, and gates |
@@ -413,13 +412,13 @@ Agents are goal-seeking and may choose a dangerous shortcut while trying to fini
 
 ```mermaid
 flowchart LR
-    AG[ADE agent] -->|Read-only| EV[Evidence replica]
+    AG[ADE agent] -->|Named reads| EV[Evidence Gateway]
     AG -->|Propose| GH[GitHub PR]
     API[Product service] -->|Owned access| DB[(Production DB)]
     AG -. No credentials .-> DB
 ```
 
-ADE agents never receive direct production database write, delete, owner, service-role, console, or “god mode” credentials. They never receive direct destructive infrastructure access, unrestricted secret access, permission to bypass or disable gates, or authority to grant themselves new tools and roles.
+ADE agents never receive a direct production database connection—read or write—and never receive delete, owner, service-role, console, or “god mode” credentials. They read through the deterministic Evidence Gateway or the ADE-owned evidence store. They never receive direct destructive infrastructure access, unrestricted secret access, permission to bypass or disable gates, or authority to grant themselves new tools and roles.
 
 Agents may propose migrations, data repair, infrastructure changes, and operational commands in a pull request or audited runbook. A separately authorized deterministic service or named human executes approved production mutations through narrow, validated interfaces. Emergency containment uses prebuilt kill switches and rollback actions—not a general-purpose production shell.
 
